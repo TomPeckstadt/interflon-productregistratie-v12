@@ -145,6 +145,7 @@ export default function ProductRegistrationApp() {
   const [showQrScanner, setShowQrScanner] = useState(false)
   const [qrScanResult, setQrScanResult] = useState("")
   const [qrScanMode, setQrScanMode] = useState<"registration" | "product-management">("registration")
+  const manualInputRef = useRef<HTMLInputElement>(null)
 
   // History filtering states
   const [historySearchQuery, setHistorySearchQuery] = useState("")
@@ -570,11 +571,89 @@ export default function ProductRegistrationApp() {
     setShowQrScanner(false)
   }
 
+  // QR Code cleaning function voor draadloze scanners
+  const cleanQrCode = (rawQrCode: string): string => {
+    console.log("🧹 Cleaning QR code:", rawQrCode)
+
+    // Vervang veelvoorkomende scanner encoding problemen
+    const cleaned = rawQrCode
+      .replace(/°/g, "_") // ° wordt vaak _
+      .replace(/\(/g, "5") // ( wordt vaak 5
+      .replace(/!/g, "1") // ! wordt vaak 1
+      .replace(/&/g, "8") // & wordt vaak 8
+      .replace(/"/g, "3") // " wordt vaak 3
+      .replace(/'/g, "1") // ' wordt vaak 1
+      .replace(/\)/g, "0") // ) wordt vaak 0
+      .replace(/\*/g, "8") // * wordt vaak 8
+      .replace(/#/g, "3") // # wordt vaak 3
+      .replace(/@/g, "2") // @ wordt vaak 2
+      .replace(/\$/g, "5") // $ wordt vaak 5
+      .replace(/%/g, "5") // % wordt vaak 5
+      .replace(/\^/g, "6") // ^ wordt vaak 6
+      .replace(/\+/g, "1") // + wordt vaak 1
+      .replace(/=/g, "3") // = wordt vaak 3
+      .replace(/\[/g, "5") // [ wordt vaak 5
+      .replace(/\]/g, "3") // ] wordt vaak 3
+      .replace(/\{/g, "8") // { wordt vaak 8
+      .replace(/\}/g, "3") // } wordt vaak 3
+      .replace(/\|/g, "1") // | wordt vaak 1
+      .replace(/\\/g, "1") // \ wordt vaak 1
+      .replace(/:/g, "") // : verwijderen
+      .replace(/;/g, "") // ; verwijderen
+      .replace(/</g, "") // < verwijderen
+      .replace(/>/g, "") // > verwijderen
+      .replace(/\?/g, "") // ? verwijderen
+      .replace(/,/g, "") // , verwijderen
+      .replace(/\./g, "") // . verwijderen
+      .replace(/~/g, "") // ~ verwijderen
+      .replace(/`/g, "") // ` verwijderen
+      .trim()
+
+    console.log("🧹 Cleaned QR code:", cleaned)
+
+    // Extra controle: als het begint met INTERFLON maar niet exact overeenkomt,
+    // probeer het te matchen met bestaande producten
+    if (cleaned.startsWith("INTERFLON") && cleaned !== rawQrCode) {
+      const possibleMatches = products.filter(
+        (p) => p.qrcode && (p.qrcode.includes(cleaned.substring(0, 10)) || cleaned.includes(p.qrcode.substring(0, 10))),
+      )
+
+      if (possibleMatches.length === 1) {
+        console.log("🎯 Found exact match:", possibleMatches[0].qrcode)
+        return possibleMatches[0].qrcode!
+      }
+    }
+
+    return cleaned
+  }
+
   const handleQrCodeDetected = (qrCode: string) => {
-    setQrScanResult(qrCode)
+    console.log("📱 Raw QR code detected:", qrCode)
+
+    // Clean de QR code voor draadloze scanner problemen
+    const cleanedQrCode = cleanQrCode(qrCode)
+    console.log("📱 Cleaned QR code:", cleanedQrCode)
+
+    setQrScanResult(cleanedQrCode)
 
     if (qrScanMode === "registration") {
-      const foundProduct = products.find((p) => p.qrcode === qrCode)
+      // Zoek eerst met de gecleande code
+      let foundProduct = products.find((p) => p.qrcode === cleanedQrCode)
+
+      // Als niet gevonden, probeer ook de originele code
+      if (!foundProduct) {
+        foundProduct = products.find((p) => p.qrcode === qrCode)
+      }
+
+      // Als nog steeds niet gevonden, probeer fuzzy matching
+      if (!foundProduct && cleanedQrCode.length > 5) {
+        foundProduct = products.find(
+          (p) =>
+            p.qrcode &&
+            (p.qrcode.toLowerCase().includes(cleanedQrCode.toLowerCase()) ||
+              cleanedQrCode.toLowerCase().includes(p.qrcode.toLowerCase())),
+        )
+      }
 
       if (foundProduct) {
         setSelectedProduct(foundProduct.name)
@@ -585,12 +664,12 @@ export default function ProductRegistrationApp() {
         setImportMessage(`✅ Product gevonden: ${foundProduct.name}`)
         setTimeout(() => setImportMessage(""), 3000)
       } else {
-        setImportError(`❌ Geen product gevonden voor QR code: ${qrCode}`)
-        setTimeout(() => setImportError(""), 3000)
+        setImportError(`❌ Geen product gevonden voor QR code: ${cleanedQrCode} (origineel: ${qrCode})`)
+        setTimeout(() => setImportError(""), 5000)
       }
     } else if (qrScanMode === "product-management") {
-      setNewProductQrCode(qrCode)
-      setImportMessage(`✅ QR code gescand: ${qrCode}`)
+      setNewProductQrCode(cleanedQrCode)
+      setImportMessage(`✅ QR code gescand: ${cleanedQrCode}`)
       setTimeout(() => setImportMessage(""), 3000)
     }
 
@@ -2940,7 +3019,6 @@ interface QrScannerProps {
 const QrScanner: React.FC<QrScannerProps> = ({ onResult, onError }) => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
   const [scanResult, setScanResult] = useState("")
-  const manualInputRef = useRef<HTMLInputElement>(null)
 
   // Auto-focus het handmatige invoer veld voor draadloze scanners
   useEffect(() => {
