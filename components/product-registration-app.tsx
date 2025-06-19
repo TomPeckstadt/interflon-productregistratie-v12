@@ -47,7 +47,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Trash2, Search, X, QrCode, ChevronDown, Edit, Printer } from "lucide-react"
+import { Plus, Trash2, Search, X, QrCode, ChevronDown, Edit, Printer } from 'lucide-react'
 
 interface Product {
   id: string
@@ -571,56 +571,68 @@ export default function ProductRegistrationApp() {
     setShowQrScanner(false)
   }
 
-  // QR Code cleaning function voor draadloze scanners
+  // QR Code cleaning function voor draadloze scanners met shift-character problemen
   const cleanQrCode = (rawQrCode: string): string => {
     console.log("🧹 Cleaning QR code:", rawQrCode)
 
-    // Vervang veelvoorkomende scanner encoding problemen
+    // Vervang shift-karakters met hun normale equivalenten (QWERTY keyboard layout)
     const cleaned = rawQrCode
-      .replace(/°/g, "_") // ° wordt vaak _
-      .replace(/\(/g, "5") // ( wordt vaak 5
-      .replace(/!/g, "1") // ! wordt vaak 1
-      .replace(/&/g, "8") // & wordt vaak 8
-      .replace(/"/g, "3") // " wordt vaak 3
-      .replace(/'/g, "1") // ' wordt vaak 1
-      .replace(/\)/g, "0") // ) wordt vaak 0
-      .replace(/\*/g, "8") // * wordt vaak 8
-      .replace(/#/g, "3") // # wordt vaak 3
-      .replace(/@/g, "2") // @ wordt vaak 2
-      .replace(/\$/g, "5") // $ wordt vaak 5
-      .replace(/%/g, "5") // % wordt vaak 5
-      .replace(/\^/g, "6") // ^ wordt vaak 6
-      .replace(/\+/g, "1") // + wordt vaak 1
-      .replace(/=/g, "3") // = wordt vaak 3
-      .replace(/\[/g, "5") // [ wordt vaak 5
-      .replace(/\]/g, "3") // ] wordt vaak 3
-      .replace(/\{/g, "8") // { wordt vaak 8
-      .replace(/\}/g, "3") // } wordt vaak 3
-      .replace(/\|/g, "1") // | wordt vaak 1
-      .replace(/\\/g, "1") // \ wordt vaak 1
-      .replace(/:/g, "") // : verwijderen
-      .replace(/;/g, "") // ; verwijderen
-      .replace(/</g, "") // < verwijderen
-      .replace(/>/g, "") // > verwijderen
-      .replace(/\?/g, "") // ? verwijderen
-      .replace(/,/g, "") // , verwijderen
-      .replace(/\./g, "") // . verwijderen
-      .replace(/~/g, "") // ~ verwijderen
-      .replace(/`/g, "") // ` verwijderen
+      // Cijfer rij shift-karakters naar normale cijfers
+      .replace(/!/g, "1")    // ! (shift+1) → 1
+      .replace(/@/g, "2")    // @ (shift+2) → 2  
+      .replace(/#/g, "3")    // # (shift+3) → 3
+      .replace(/\$/g, "4")   // $ (shift+4) → 4
+      .replace(/%/g, "5")    // % (shift+5) → 5
+      .replace(/\^/g, "6")   // ^ (shift+6) → 6
+      .replace(/&/g, "7")    // & (shift+7) → 7
+      .replace(/\*/g, "8")   // * (shift+8) → 8
+      .replace(/\(/g, "9")   // ( (shift+9) → 9
+      .replace(/\)/g, "0")   // ) (shift+0) → 0
+      
+      // Andere shift-karakters
+      .replace(/°/g, "_")    // ° naar _ (underscore)
+      .replace(/"/g, "'")    // " naar ' (enkele quote, maar meestal willen we dit weg)
+      .replace(/'/g, "")     // ' verwijderen (meestal niet gewenst in QR codes)
+      .replace(/"/g, "")     // " verwijderen
+      
+      // Speciale karakters die vaak fout gaan
+      .replace(/\+/g, "=")   // + (shift+=) soms verkeerd
+      .replace(/\{/g, "[")   // { (shift+[) → [
+      .replace(/\}/g, "]")   // } (shift+]) → ]
+      .replace(/\|/g, "\\")  // | (shift+\) → \
+      .replace(/:/g, ";")    // : (shift+;) → ;
+      .replace(/</g, ",")    // < (shift+,) → .
+      .replace(/>/g, ".")    // > (shift+.) → .
+      .replace(/\?/g, "/")   // ? (shift+/) → /
+      
+      // Ruim op
+      .replace(/['"]/g, "")  // Verwijder quotes die vaak fout gaan
+      .replace(/[;,.\\/]/g, "") // Verwijder interpunctie die meestal niet in QR codes hoort
       .trim()
 
     console.log("🧹 Cleaned QR code:", cleaned)
 
-    // Extra controle: als het begint met INTERFLON maar niet exact overeenkomt,
-    // probeer het te matchen met bestaande producten
-    if (cleaned.startsWith("INTERFLON") && cleaned !== rawQrCode) {
-      const possibleMatches = products.filter(
-        (p) => p.qrcode && (p.qrcode.includes(cleaned.substring(0, 10)) || cleaned.includes(p.qrcode.substring(0, 10))),
+    // Extra controle: probeer exacte match met bestaande producten
+    if (cleaned !== rawQrCode) {
+      // Zoek eerst exacte match
+      const exactMatch = products.find(p => p.qrcode === cleaned)
+      if (exactMatch) {
+        console.log("🎯 Found exact match after cleaning:", exactMatch.qrcode)
+        return cleaned
+      }
+      
+      // Als geen exacte match, probeer fuzzy matching
+      const fuzzyMatch = products.find(p => 
+        p.qrcode && (
+          p.qrcode.replace(/[^A-Z0-9]/g, '') === cleaned.replace(/[^A-Z0-9]/g, '') ||
+          cleaned.includes(p.qrcode.substring(0, 8)) ||
+          p.qrcode.includes(cleaned.substring(0, 8))
+        )
       )
-
-      if (possibleMatches.length === 1) {
-        console.log("🎯 Found exact match:", possibleMatches[0].qrcode)
-        return possibleMatches[0].qrcode!
+      
+      if (fuzzyMatch) {
+        console.log("🎯 Found fuzzy match:", fuzzyMatch.qrcode)
+        return fuzzyMatch.qrcode!
       }
     }
 
@@ -2903,6 +2915,13 @@ export default function ProductRegistrationApp() {
               </div>
 
               <div className="text-center mb-6">
+                <h3 className="text-lg font-semibold">QR Code Scanner</h3>
+                <Button variant="ghost" size="sm" onClick={stopQrScanner} className="p-1">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="text-center mb-6">
                 <div className="text-6xl mb-4 text-gray-400">📱</div>
                 <p className="text-gray-600 mb-4">Richt je camera op een QR code</p>
 
@@ -2913,200 +2932,4 @@ export default function ProductRegistrationApp() {
                       type="text"
                       placeholder="Of voer QR code handmatig in"
                       value={qrScanResult}
-                      onChange={(e) => setQrScanResult(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && qrScanResult.trim()) {
-                          handleQrCodeDetected(qrScanResult.trim())
-                        }
-                      }}
-                      className="w-full text-center"
-                      autoFocus
-                    />
-                  </div>
 
-                  <Button
-                    onClick={() => {
-                      if (qrScanResult.trim()) {
-                        handleQrCodeDetected(qrScanResult.trim())
-                      }
-                    }}
-                    disabled={!qrScanResult.trim()}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                  >
-                    QR Code Gebruiken
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// Professional QR Code Display Component - EXTERNE API
-interface ProfessionalQRCodeProps {
-  qrCode: string
-  size?: number
-}
-
-const ProfessionalQRCode: React.FC<ProfessionalQRCodeProps> = ({ qrCode, size = 32 }) => {
-  const [qrImageUrl, setQrImageUrl] = useState<string>("")
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
-
-  useEffect(() => {
-    if (qrCode) {
-      // Gebruik QR Server API voor professionele QR-codes
-      const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(qrCode)}&format=png&ecc=M`
-      setQrImageUrl(apiUrl)
-      setIsLoading(false)
-    }
-  }, [qrCode, size])
-
-  const handleImageError = () => {
-    setHasError(true)
-    setIsLoading(false)
-  }
-
-  const handleImageLoad = () => {
-    setIsLoading(false)
-    setHasError(false)
-  }
-
-  if (isLoading) {
-    return (
-      <div
-        className="bg-gray-100 border border-gray-300 flex items-center justify-center text-xs animate-pulse"
-        style={{ width: size, height: size }}
-      >
-        ⏳
-      </div>
-    )
-  }
-
-  if (hasError || !qrImageUrl) {
-    return (
-      <div
-        className="bg-gray-100 border border-gray-300 flex items-center justify-center text-xs text-red-500"
-        style={{ width: size, height: size }}
-      >
-        ❌
-      </div>
-    )
-  }
-
-  return (
-    <img
-      src={qrImageUrl || "/placeholder.svg"}
-      alt={`QR Code: ${qrCode}`}
-      className="border border-gray-300 rounded"
-      style={{ width: size, height: size }}
-      title={`QR Code: ${qrCode}`}
-      onError={handleImageError}
-      onLoad={handleImageLoad}
-    />
-  )
-}
-
-// QR Scanner component
-interface QrScannerProps {
-  onResult: (result: string) => void
-  onError: (error: any) => void
-}
-
-const QrScanner: React.FC<QrScannerProps> = ({ onResult, onError }) => {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
-  const [scanResult, setScanResult] = useState("")
-
-  // Auto-focus het handmatige invoer veld voor draadloze scanners
-  useEffect(() => {
-    if (manualInputRef.current) {
-      manualInputRef.current.focus()
-    }
-  }, [])
-
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const result = await navigator.permissions.query({ name: "camera" as PermissionName })
-        setHasPermission(result.state === "granted")
-
-        if (result.state === "prompt") {
-          navigator.mediaDevices
-            .getUserMedia({ video: true })
-            .then(() => setHasPermission(true))
-            .catch(() => setHasPermission(false))
-        }
-      } catch (error) {
-        console.error("Permission check failed:", error)
-        setHasPermission(false)
-      }
-    })()
-  }, [])
-
-  const handleError = (err: any) => {
-    console.error(err)
-    onError(err)
-  }
-
-  const handleScan = (result: any) => {
-    if (result) {
-      setScanResult(result.text)
-      onResult(result.text)
-    }
-  }
-
-  if (hasPermission === null) {
-    return (
-      <div className="text-center">
-        <div className="text-6xl mb-4 text-gray-400">📱</div>
-        <p>Camera toestemming aanvragen...</p>
-        <div className="mt-4">
-          <Input
-            ref={manualInputRef}
-            type="text"
-            placeholder="Of voer QR code handmatig in"
-            className="w-full text-center"
-            autoFocus
-          />
-        </div>
-      </div>
-    )
-  }
-
-  if (hasPermission === false) {
-    return (
-      <div className="text-center">
-        <div className="text-6xl mb-4 text-gray-400">📱</div>
-        <p>Geen camera toestemming.</p>
-        <div className="mt-4">
-          <Input
-            ref={manualInputRef}
-            type="text"
-            placeholder="Voer QR code handmatig in"
-            className="w-full text-center"
-            autoFocus
-          />
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="text-center">
-      <div className="text-6xl mb-4 text-gray-400">📱</div>
-      <p>{scanResult ? `Resultaat: ${scanResult}` : "Scannen..."}</p>
-      <div className="mt-4">
-        <Input
-          ref={manualInputRef}
-          type="text"
-          placeholder="Of voer QR code handmatig in"
-          className="w-full text-center"
-          autoFocus
-        />
-      </div>
-    </div>
-  )
-}
