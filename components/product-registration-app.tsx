@@ -575,146 +575,129 @@ export default function ProductRegistrationApp() {
 
   // QR Code cleaning function voor draadloze scanners met keyboard layout problemen
   const cleanQrCode = (rawQrCode: string): string => {
-    console.log("🧹 Cleaning QR code:", rawQrCode)
+    console.log("🧹 Cleaning QR code (AZERTY→QWERTY):", rawQrCode)
 
-    // AZERTY naar QWERTY mapping (België/Frankrijk)
-    const azertyToQwerty: Record<string, string> = {
-      // AZERTY cijfer rij naar QWERTY cijfers
-      "&": "1",
-      é: "2",
-      '"': "3",
-      "'": "4",
-      "(": "5",
-      "§": "6",
-      è: "7",
-      "!": "8",
-      ç: "9",
-      à: "0",
+    // AZERTY naar QWERTY mapping (België/Frankrijk keyboard layout)
+    const azertyToQwertyMap: Record<string, string> = {
+      // Cijfer rij AZERTY → QWERTY
+      "&": "1", // AZERTY 1 → QWERTY 1
+      é: "2", // AZERTY 2 → QWERTY 2
+      '"': "3", // AZERTY 3 → QWERTY 3
+      "'": "4", // AZERTY 4 → QWERTY 4
+      "(": "5", // AZERTY 5 → QWERTY 5
+      "§": "6", // AZERTY 6 → QWERTY 6
+      è: "7", // AZERTY 7 → QWERTY 7
+      "!": "8", // AZERTY 8 → QWERTY 8
+      ç: "9", // AZERTY 9 → QWERTY 9
+      à: "0", // AZERTY 0 → QWERTY 0
+
+      // Speciale karakters AZERTY → QWERTY
+      "°": "_", // AZERTY _ → QWERTY _
+      "-": "-", // Blijft hetzelfde
+      "=": "=", // Blijft hetzelfde maar kan anders zijn
+
+      // Letters die anders kunnen zijn
+      a: "a",
+      z: "z",
+      e: "e",
+      r: "r",
+      t: "t",
+      y: "y",
+      u: "u",
+      i: "i",
+      o: "o",
+      p: "p",
+      q: "q",
+      s: "s",
+      d: "d",
+      f: "f",
+      g: "g",
+      h: "h",
+      j: "j",
+      k: "k",
+      l: "l",
+      m: "m",
+      w: "w",
+      x: "x",
+      c: "c",
+      v: "v",
+      b: "b",
+      n: "n",
+
+      // Hoofdletters
+      A: "A",
+      Z: "Z",
+      E: "E",
+      R: "R",
+      T: "T",
+      Y: "Y",
+      U: "U",
+      I: "I",
+      O: "O",
+      P: "P",
+      Q: "Q",
+      S: "S",
+      D: "D",
+      F: "F",
+      G: "G",
+      H: "H",
+      J: "J",
+      K: "K",
+      L: "L",
+      M: "M",
+      W: "W",
+      X: "X",
+      C: "C",
+      V: "V",
+      B: "B",
+      N: "N",
     }
 
-    // Shift-karakters naar normale karakters (QWERTY)
-    const shiftToNormal: Record<string, string> = {
-      "!": "1",
-      "@": "2",
-      "#": "3",
-      $: "4",
-      "%": "5",
-      "^": "6",
-      "&": "7",
-      "*": "8",
-      "(": "9",
-      ")": "0",
-      _: "_", // underscore blijft underscore
-      "+": "=",
-      "{": "[",
-      "}": "]",
-      "|": "\\",
-      ":": ";",
-      '"': "'",
-      "<": ",",
-      ">": ".",
-      "?": "/",
-      "~": "`",
-    }
-
-    // Speciale karakters die vaak fout gaan
-    const specialChars: Record<string, string> = {
-      "°": "_", // Vaak gebruikt voor underscore
-      "²": "2", // Superscript 2
-      "³": "3", // Superscript 3
-      "¹": "1", // Superscript 1
-      "€": "E", // Euro teken
-      "£": "L", // Pond teken
-      "¤": "O", // Algemeen valuta symbool
-      "¨": '"', // Diaeresis
-      "´": "'", // Acute accent
-      "`": "'", // Grave accent
-      "¸": ",", // Cedilla
-      "¯": "_", // Macron
-      "˘": "U", // Breve
-      "˙": ".", // Dot above
-      "˚": "O", // Ring above
-      "˝": '"', // Double acute
-      "˛": ",", // Ogonek
-      "˜": "~", // Small tilde
-    }
-
+    // Stap 1: Character-by-character mapping
     let cleaned = rawQrCode
+      .split("")
+      .map((char) => azertyToQwertyMap[char] || char)
+      .join("")
 
-    // Stap 1: Probeer AZERTY naar QWERTY conversie
-    for (const [azerty, qwerty] of Object.entries(azertyToQwerty)) {
-      cleaned = cleaned.replace(new RegExp(azerty.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), qwerty)
-    }
+    console.log("🔄 After AZERTY→QWERTY mapping:", cleaned)
 
-    // Stap 2: Probeer shift-karakters naar normale karakters
-    for (const [shift, normal] of Object.entries(shiftToNormal)) {
-      cleaned = cleaned.replace(new RegExp(shift.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), normal)
-    }
+    // Stap 2: Specifieke patronen voor jouw QR codes
+    // Als we weten dat het patroon _581533 zou moeten zijn:
+    const knownPatterns = [
+      { wrong: '°(!&(""', correct: "_581533" },
+      { wrong: "°(!&(", correct: "_5815" },
+      // Voeg hier meer patronen toe als je ze tegenkomt
+    ]
 
-    // Stap 3: Vervang speciale karakters
-    for (const [special, normal] of Object.entries(specialChars)) {
-      cleaned = cleaned.replace(new RegExp(special.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), normal)
-    }
-
-    // Stap 4: Ruim overgebleven vreemde karakters op
-    cleaned = cleaned
-      .replace(/[^\w\-_]/g, "") // Behoud alleen letters, cijfers, underscore en streepjes
-      .trim()
-
-    console.log("🧹 Cleaned QR code:", cleaned)
-    console.log("🔍 Character mapping details:", {
-      original: rawQrCode,
-      afterAzerty: rawQrCode
-        .split("")
-        .map((char) => azertyToQwerty[char] || char)
-        .join(""),
-      afterShift: rawQrCode
-        .split("")
-        .map((char) => shiftToNormal[char] || char)
-        .join(""),
-      afterSpecial: rawQrCode
-        .split("")
-        .map((char) => specialChars[char] || char)
-        .join(""),
-      final: cleaned,
-    })
-
-    // Stap 5: Probeer exacte match met bestaande producten
-    if (cleaned !== rawQrCode) {
-      // Zoek eerst exacte match
-      const exactMatch = products.find((p) => p.qrcode === cleaned)
-      if (exactMatch) {
-        console.log("🎯 Found exact match after cleaning:", exactMatch.qrcode)
-        return cleaned
-      }
-
-      // Als geen exacte match, probeer fuzzy matching
-      const fuzzyMatch = products.find(
-        (p) =>
-          p.qrcode &&
-          (p.qrcode.replace(/[^A-Z0-9]/g, "") === cleaned.replace(/[^A-Z0-9]/g, "") ||
-            cleaned.includes(p.qrcode.substring(0, 8)) ||
-            p.qrcode.includes(cleaned.substring(0, 8))),
-      )
-
-      if (fuzzyMatch) {
-        console.log("🎯 Found fuzzy match:", fuzzyMatch.qrcode)
-        return fuzzyMatch.qrcode!
-      }
-
-      // Probeer ook omgekeerde mapping (voor het geval de scanner andersom werkt)
-      let reverseAttempt = rawQrCode
-      for (const [normal, shift] of Object.entries(shiftToNormal)) {
-        reverseAttempt = reverseAttempt.replace(new RegExp(normal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), shift)
-      }
-
-      const reverseMatch = products.find((p) => p.qrcode === reverseAttempt)
-      if (reverseMatch) {
-        console.log("🎯 Found reverse match:", reverseMatch.qrcode)
-        return reverseMatch.qrcode!
+    for (const pattern of knownPatterns) {
+      if (cleaned.includes(pattern.wrong)) {
+        cleaned = cleaned.replace(pattern.wrong, pattern.correct)
+        console.log(`🎯 Applied pattern fix: ${pattern.wrong} → ${pattern.correct}`)
       }
     }
 
+    // Stap 3: Probeer exacte match met bestaande producten
+    const exactMatch = products.find((p) => p.qrcode === cleaned)
+    if (exactMatch) {
+      console.log("✅ Found exact match after cleaning:", exactMatch.qrcode)
+      return cleaned
+    }
+
+    // Stap 4: Fuzzy matching
+    const fuzzyMatch = products.find(
+      (p) =>
+        p.qrcode &&
+        (p.qrcode.replace(/[^A-Z0-9]/g, "") === cleaned.replace(/[^A-Z0-9]/g, "") ||
+          cleaned.includes(p.qrcode.substring(0, 6)) ||
+          p.qrcode.includes(cleaned.substring(0, 6))),
+    )
+
+    if (fuzzyMatch) {
+      console.log("🎯 Found fuzzy match:", fuzzyMatch.qrcode)
+      return fuzzyMatch.qrcode!
+    }
+
+    console.log("❌ No match found, returning cleaned version:", cleaned)
     return cleaned
   }
 
