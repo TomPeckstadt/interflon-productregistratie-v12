@@ -49,7 +49,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Trash2, Search, X, QrCode, ChevronDown, Edit, Printer } from "lucide-react"
 import ProfessionalQRCode from "@/components/professional-qr-code"
-import QrScanner from "react-qr-scanner"
 
 interface Product {
   id: string
@@ -188,6 +187,16 @@ export default function ProductRegistrationApp() {
       console.log("👤 Set default user:", users[0])
     }
   }, [users, currentUser])
+
+  // Auto-focus het QR scanner input veld wanneer de scanner opent
+  useEffect(() => {
+    if (showQrScanner && manualInputRef.current) {
+      // Kleine delay om zeker te zijn dat de modal volledig geladen is
+      setTimeout(() => {
+        manualInputRef.current?.focus()
+      }, 100)
+    }
+  }, [showQrScanner])
 
   const loadAllData = async () => {
     console.log("🔄 Loading all data...")
@@ -2941,25 +2950,61 @@ export default function ProductRegistrationApp() {
         {showQrScanner && (
           <div className="fixed top-0 left-0 w-full h-full bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center">
             <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
-              <h2 className="text-xl font-bold mb-4">Scan QR Code</h2>
-              <QrScanner
-                onResult={(result) => handleQrCodeDetected(result.text)}
-                onError={(error) => console.error(error)}
-              />
-              <div className="flex justify-between mt-4">
-                <Button variant="secondary" onClick={stopQrScanner}>
-                  Annuleren
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">QR Code Scanner</h2>
+                <Button variant="ghost" size="sm" onClick={stopQrScanner} className="p-1">
+                  <X className="h-4 w-4" />
                 </Button>
-                <Input type="text" placeholder="Handmatige invoer" ref={manualInputRef} className="w-auto" />
-                <Button
-                  onClick={() => {
-                    if (manualInputRef.current?.value) {
-                      handleQrCodeDetected(manualInputRef.current.value)
-                    }
-                  }}
-                >
-                  Invoeren
-                </Button>
+              </div>
+
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4 text-gray-400">📱</div>
+                <p className="text-gray-600 mb-4">Richt je camera op een QR code</p>
+
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Input
+                      ref={manualInputRef}
+                      type="text"
+                      placeholder="Of voer QR code handmatig in"
+                      value={qrScanResult}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setQrScanResult(newValue)
+
+                        // Automatisch verwerken wanneer er een waarde is en Enter wordt gedrukt
+                        // OF wanneer de waarde lijkt op een QR code (meer dan 3 karakters)
+                        if (newValue.trim().length > 3) {
+                          // Kleine delay om te voorkomen dat het te snel triggert tijdens typen
+                          setTimeout(() => {
+                            if (newValue === qrScanResult && newValue.trim()) {
+                              handleQrCodeDetected(newValue.trim())
+                            }
+                          }, 500)
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && qrScanResult.trim()) {
+                          handleQrCodeDetected(qrScanResult.trim())
+                        }
+                      }}
+                      className="w-full text-center"
+                      autoFocus // Automatische focus!
+                    />
+                  </div>
+
+                  <Button
+                    onClick={() => {
+                      if (qrScanResult.trim()) {
+                        handleQrCodeDetected(qrScanResult.trim())
+                      }
+                    }}
+                    disabled={!qrScanResult.trim()}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                  >
+                    QR Code Gebruiken
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
