@@ -216,7 +216,7 @@ export default function ProductRegistrationApp() {
             users: { success: !usersResult.error, count: usersResult.data?.length || 0 },
             products: { success: !productsResult.error, count: productsResult.data?.length || 0 },
             locations: { success: !locationsResult.error, count: locationsResult.data?.length || 0 },
-            purposes: { success: !purposesResult.error, count: locationsResult.data?.length || 0 },
+            purposes: { success: !locationsResult.error, count: locationsResult.data?.length || 0 },
             categories: { success: !categoriesResult.error, count: categoriesResult.data?.length || 0 },
           })
 
@@ -2601,72 +2601,6 @@ export default function ProductRegistrationApp() {
                       </Table>
                     </CardContent>
                   </Card>
-
-                  {/* Product Chart */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b pb-4">
-                      <CardTitle className="text-lg font-medium text-gray-900">Top 5 Producten</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="space-y-4">
-                        {/* Simple Pie Chart */}
-                        <div className="flex justify-center">
-                          <div className="relative w-32 h-32">
-                            <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-                              {(() => {
-                                const chartData = getProductChartData()
-                                const total = chartData.reduce((sum, item) => sum + item.count, 0)
-                                let currentAngle = 0
-
-                                return chartData.map((item, index) => {
-                                  const percentage = (item.count / total) * 100
-                                  const angle = (percentage / 100) * 360
-                                  const startAngle = currentAngle
-                                  const endAngle = currentAngle + angle
-                                  currentAngle += angle
-
-                                  const startAngleRad = (startAngle * Math.PI) / 180
-                                  const endAngleRad = (endAngle * Math.PI) / 180
-
-                                  const x1 = 50 + 40 * Math.cos(startAngleRad)
-                                  const y1 = 50 + 40 * Math.sin(startAngleRad)
-                                  const x2 = 50 + 40 * Math.cos(endAngleRad)
-                                  const y2 = 50 + 40 * Math.sin(endAngleRad)
-
-                                  const largeArcFlag = angle > 180 ? 1 : 0
-
-                                  const pathData = [
-                                    `M 50 50`,
-                                    `L ${x1} ${y1}`,
-                                    `A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-                                    "Z",
-                                  ].join(" ")
-
-                                  return (
-                                    <path key={index} d={pathData} fill={item.color} stroke="white" strokeWidth="1" />
-                                  )
-                                })
-                              })()}
-                            </svg>
-                          </div>
-                        </div>
-
-                        {/* Legend */}
-                        <div className="space-y-2">
-                          {getProductChartData().map((item, index) => (
-                            <div key={index} className="flex items-center gap-2 text-xs">
-                              <div
-                                className="w-3 h-3 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: item.color }}
-                              ></div>
-                              <span className="text-gray-700 truncate">{item.product}</span>
-                              <span className="text-gray-900 font-medium ml-auto">{item.count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
                 </div>
               )}
 
@@ -2881,11 +2815,49 @@ export default function ProductRegistrationApp() {
         {/* QR Scanner */}
         {showQrScanner && (
           <div className="fixed top-0 left-0 w-full h-full bg-gray-900 bg-opacity-80 z-50 flex items-center justify-center">
-            <div className="bg-white rounded-lg p-4">
-              <QrScanner onResult={handleQrCodeDetected} onError={(error) => console.error(error)} />
-              <Button onClick={stopQrScanner} className="mt-4">
-                Stop Scanner
-              </Button>
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">QR Code Scanner</h3>
+                <Button variant="ghost" size="sm" onClick={stopQrScanner} className="p-1">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4 text-gray-400">📱</div>
+                <p className="text-gray-600 mb-4">Richt je camera op een QR code</p>
+
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Input
+                      ref={manualInputRef}
+                      type="text"
+                      placeholder="Of voer QR code handmatig in"
+                      value={qrScanResult}
+                      onChange={(e) => setQrScanResult(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && qrScanResult.trim()) {
+                          handleQrCodeDetected(qrScanResult.trim())
+                        }
+                      }}
+                      className="w-full text-center"
+                      autoFocus
+                    />
+                  </div>
+
+                  <Button
+                    onClick={() => {
+                      if (qrScanResult.trim()) {
+                        handleQrCodeDetected(qrScanResult.trim())
+                      }
+                    }}
+                    disabled={!qrScanResult.trim()}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                  >
+                    QR Code Gebruiken
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -2968,6 +2940,14 @@ interface QrScannerProps {
 const QrScanner: React.FC<QrScannerProps> = ({ onResult, onError }) => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
   const [scanResult, setScanResult] = useState("")
+  const manualInputRef = useRef<HTMLInputElement>(null)
+
+  // Auto-focus het handmatige invoer veld voor draadloze scanners
+  useEffect(() => {
+    if (manualInputRef.current) {
+      manualInputRef.current.focus()
+    }
+  }, [])
 
   useEffect(() => {
     ;(async () => {
@@ -3001,12 +2981,54 @@ const QrScanner: React.FC<QrScannerProps> = ({ onResult, onError }) => {
   }
 
   if (hasPermission === null) {
-    return <div>Camera toestemming aanvragen...</div>
+    return (
+      <div className="text-center">
+        <div className="text-6xl mb-4 text-gray-400">📱</div>
+        <p>Camera toestemming aanvragen...</p>
+        <div className="mt-4">
+          <Input
+            ref={manualInputRef}
+            type="text"
+            placeholder="Of voer QR code handmatig in"
+            className="w-full text-center"
+            autoFocus
+          />
+        </div>
+      </div>
+    )
   }
 
   if (hasPermission === false) {
-    return <div>Geen camera toestemming.</div>
+    return (
+      <div className="text-center">
+        <div className="text-6xl mb-4 text-gray-400">📱</div>
+        <p>Geen camera toestemming.</p>
+        <div className="mt-4">
+          <Input
+            ref={manualInputRef}
+            type="text"
+            placeholder="Voer QR code handmatig in"
+            className="w-full text-center"
+            autoFocus
+          />
+        </div>
+      </div>
+    )
   }
 
-  return <div>{scanResult ? `Resultaat: ${scanResult}` : "Scannen..."}</div>
+  return (
+    <div className="text-center">
+      <div className="text-6xl mb-4 text-gray-400">📱</div>
+      <p>{scanResult ? `Resultaat: ${scanResult}` : "Scannen..."}</p>
+      <div className="mt-4">
+        <Input
+          ref={manualInputRef}
+          type="text"
+          placeholder="Of voer QR code handmatig in"
+          className="w-full text-center"
+          autoFocus
+        />
+      </div>
+    </div>
+  )
 }
