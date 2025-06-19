@@ -47,7 +47,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Trash2, Search, X, QrCode, ChevronDown, Edit, Printer } from 'lucide-react'
+import { Plus, Trash2, Search, X, QrCode, ChevronDown, Edit, Printer } from "lucide-react"
+import ProfessionalQRCode from "@/components/professional-qr-code"
+import QrScanner from "react-qr-scanner"
 
 interface Product {
   id: string
@@ -571,68 +573,145 @@ export default function ProductRegistrationApp() {
     setShowQrScanner(false)
   }
 
-  // QR Code cleaning function voor draadloze scanners met shift-character problemen
+  // QR Code cleaning function voor draadloze scanners met keyboard layout problemen
   const cleanQrCode = (rawQrCode: string): string => {
     console.log("🧹 Cleaning QR code:", rawQrCode)
 
-    // Vervang shift-karakters met hun normale equivalenten (QWERTY keyboard layout)
-    const cleaned = rawQrCode
-      // Cijfer rij shift-karakters naar normale cijfers
-      .replace(/!/g, "1")    // ! (shift+1) → 1
-      .replace(/@/g, "2")    // @ (shift+2) → 2  
-      .replace(/#/g, "3")    // # (shift+3) → 3
-      .replace(/\$/g, "4")   // $ (shift+4) → 4
-      .replace(/%/g, "5")    // % (shift+5) → 5
-      .replace(/\^/g, "6")   // ^ (shift+6) → 6
-      .replace(/&/g, "7")    // & (shift+7) → 7
-      .replace(/\*/g, "8")   // * (shift+8) → 8
-      .replace(/\(/g, "9")   // ( (shift+9) → 9
-      .replace(/\)/g, "0")   // ) (shift+0) → 0
-      
-      // Andere shift-karakters
-      .replace(/°/g, "_")    // ° naar _ (underscore)
-      .replace(/"/g, "'")    // " naar ' (enkele quote, maar meestal willen we dit weg)
-      .replace(/'/g, "")     // ' verwijderen (meestal niet gewenst in QR codes)
-      .replace(/"/g, "")     // " verwijderen
-      
-      // Speciale karakters die vaak fout gaan
-      .replace(/\+/g, "=")   // + (shift+=) soms verkeerd
-      .replace(/\{/g, "[")   // { (shift+[) → [
-      .replace(/\}/g, "]")   // } (shift+]) → ]
-      .replace(/\|/g, "\\")  // | (shift+\) → \
-      .replace(/:/g, ";")    // : (shift+;) → ;
-      .replace(/</g, ",")    // < (shift+,) → .
-      .replace(/>/g, ".")    // > (shift+.) → .
-      .replace(/\?/g, "/")   // ? (shift+/) → /
-      
-      // Ruim op
-      .replace(/['"]/g, "")  // Verwijder quotes die vaak fout gaan
-      .replace(/[;,.\\/]/g, "") // Verwijder interpunctie die meestal niet in QR codes hoort
+    // AZERTY naar QWERTY mapping (België/Frankrijk)
+    const azertyToQwerty: Record<string, string> = {
+      // AZERTY cijfer rij naar QWERTY cijfers
+      "&": "1",
+      é: "2",
+      '"': "3",
+      "'": "4",
+      "(": "5",
+      "§": "6",
+      è: "7",
+      "!": "8",
+      ç: "9",
+      à: "0",
+    }
+
+    // Shift-karakters naar normale karakters (QWERTY)
+    const shiftToNormal: Record<string, string> = {
+      "!": "1",
+      "@": "2",
+      "#": "3",
+      $: "4",
+      "%": "5",
+      "^": "6",
+      "&": "7",
+      "*": "8",
+      "(": "9",
+      ")": "0",
+      _: "_", // underscore blijft underscore
+      "+": "=",
+      "{": "[",
+      "}": "]",
+      "|": "\\",
+      ":": ";",
+      '"': "'",
+      "<": ",",
+      ">": ".",
+      "?": "/",
+      "~": "`",
+    }
+
+    // Speciale karakters die vaak fout gaan
+    const specialChars: Record<string, string> = {
+      "°": "_", // Vaak gebruikt voor underscore
+      "²": "2", // Superscript 2
+      "³": "3", // Superscript 3
+      "¹": "1", // Superscript 1
+      "€": "E", // Euro teken
+      "£": "L", // Pond teken
+      "¤": "O", // Algemeen valuta symbool
+      "¨": '"', // Diaeresis
+      "´": "'", // Acute accent
+      "`": "'", // Grave accent
+      "¸": ",", // Cedilla
+      "¯": "_", // Macron
+      "˘": "U", // Breve
+      "˙": ".", // Dot above
+      "˚": "O", // Ring above
+      "˝": '"', // Double acute
+      "˛": ",", // Ogonek
+      "˜": "~", // Small tilde
+    }
+
+    let cleaned = rawQrCode
+
+    // Stap 1: Probeer AZERTY naar QWERTY conversie
+    for (const [azerty, qwerty] of Object.entries(azertyToQwerty)) {
+      cleaned = cleaned.replace(new RegExp(azerty.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), qwerty)
+    }
+
+    // Stap 2: Probeer shift-karakters naar normale karakters
+    for (const [shift, normal] of Object.entries(shiftToNormal)) {
+      cleaned = cleaned.replace(new RegExp(shift.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), normal)
+    }
+
+    // Stap 3: Vervang speciale karakters
+    for (const [special, normal] of Object.entries(specialChars)) {
+      cleaned = cleaned.replace(new RegExp(special.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), normal)
+    }
+
+    // Stap 4: Ruim overgebleven vreemde karakters op
+    cleaned = cleaned
+      .replace(/[^\w\-_]/g, "") // Behoud alleen letters, cijfers, underscore en streepjes
       .trim()
 
     console.log("🧹 Cleaned QR code:", cleaned)
+    console.log("🔍 Character mapping details:", {
+      original: rawQrCode,
+      afterAzerty: rawQrCode
+        .split("")
+        .map((char) => azertyToQwerty[char] || char)
+        .join(""),
+      afterShift: rawQrCode
+        .split("")
+        .map((char) => shiftToNormal[char] || char)
+        .join(""),
+      afterSpecial: rawQrCode
+        .split("")
+        .map((char) => specialChars[char] || char)
+        .join(""),
+      final: cleaned,
+    })
 
-    // Extra controle: probeer exacte match met bestaande producten
+    // Stap 5: Probeer exacte match met bestaande producten
     if (cleaned !== rawQrCode) {
       // Zoek eerst exacte match
-      const exactMatch = products.find(p => p.qrcode === cleaned)
+      const exactMatch = products.find((p) => p.qrcode === cleaned)
       if (exactMatch) {
         console.log("🎯 Found exact match after cleaning:", exactMatch.qrcode)
         return cleaned
       }
-      
+
       // Als geen exacte match, probeer fuzzy matching
-      const fuzzyMatch = products.find(p => 
-        p.qrcode && (
-          p.qrcode.replace(/[^A-Z0-9]/g, '') === cleaned.replace(/[^A-Z0-9]/g, '') ||
-          cleaned.includes(p.qrcode.substring(0, 8)) ||
-          p.qrcode.includes(cleaned.substring(0, 8))
-        )
+      const fuzzyMatch = products.find(
+        (p) =>
+          p.qrcode &&
+          (p.qrcode.replace(/[^A-Z0-9]/g, "") === cleaned.replace(/[^A-Z0-9]/g, "") ||
+            cleaned.includes(p.qrcode.substring(0, 8)) ||
+            p.qrcode.includes(cleaned.substring(0, 8))),
       )
-      
+
       if (fuzzyMatch) {
         console.log("🎯 Found fuzzy match:", fuzzyMatch.qrcode)
         return fuzzyMatch.qrcode!
+      }
+
+      // Probeer ook omgekeerde mapping (voor het geval de scanner andersom werkt)
+      let reverseAttempt = rawQrCode
+      for (const [normal, shift] of Object.entries(shiftToNormal)) {
+        reverseAttempt = reverseAttempt.replace(new RegExp(normal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), shift)
+      }
+
+      const reverseMatch = products.find((p) => p.qrcode === reverseAttempt)
+      if (reverseMatch) {
+        console.log("🎯 Found reverse match:", reverseMatch.qrcode)
+        return reverseMatch.qrcode!
       }
     }
 
@@ -2598,10 +2677,6 @@ export default function ProductRegistrationApp() {
                                   day: "2-digit",
                                   month: "2-digit",
                                   year: "numeric",
-                                })}{" "}
-                                {new Date(registration.timestamp).toLocaleTimeString("nl-NL", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
                                 })}
                               </TableCell>
                               <TableCell className="text-gray-900">{registration.user}</TableCell>
@@ -2615,108 +2690,93 @@ export default function ProductRegistrationApp() {
                 </Card>
               )}
 
-              {/* Top 5 Statistics */}
-              {registrations.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                  {/* Top 5 Gebruikers */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b pb-4">
-                      <CardTitle className="text-lg font-medium text-gray-900">Top 5 Gebruikers</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="text-gray-600">Gebruiker</TableHead>
-                            <TableHead className="text-gray-600 text-right">Aantal</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {getTopUsers().map(([user, count]) => (
-                            <TableRow key={user}>
-                              <TableCell className="text-gray-900">{user}</TableCell>
-                              <TableCell className="text-gray-900 text-right font-medium">{count}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
+              {/* Top Users */}
+              <Card className="shadow-sm">
+                <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b pb-4">
+                  <CardTitle className="text-lg font-medium text-gray-900">Top Gebruikers</CardTitle>
+                  <CardDescription className="text-gray-500">Gebruikers met de meeste registraties</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-gray-600">Gebruiker</TableHead>
+                        <TableHead className="text-gray-600">Registraties</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {getTopUsers().map(([user, count]) => (
+                        <TableRow key={user}>
+                          <TableCell className="text-gray-900">{user}</TableCell>
+                          <TableCell className="text-gray-900">{count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
 
-                  {/* Top 5 Producten */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b pb-4">
-                      <CardTitle className="text-lg font-medium text-gray-900">Top 5 Producten</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="text-gray-600">Product</TableHead>
-                            <TableHead className="text-gray-600 text-right">Aantal</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {getTopProducts().map(([product, count]) => (
-                            <TableRow key={product}>
-                              <TableCell className="text-gray-900 text-sm">{product}</TableCell>
-                              <TableCell className="text-gray-900 text-right font-medium">{count}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
+              {/* Top Products */}
+              <Card className="shadow-sm">
+                <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b pb-4">
+                  <CardTitle className="text-lg font-medium text-gray-900">Top Producten</CardTitle>
+                  <CardDescription className="text-gray-500">Producten met de meeste registraties</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-gray-600">Product</TableHead>
+                        <TableHead className="text-gray-600">Registraties</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {getTopProducts().map(([product, count]) => (
+                        <TableRow key={product}>
+                          <TableCell className="text-gray-900">{product}</TableCell>
+                          <TableCell className="text-gray-900">{count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
 
-                  {/* Top 5 Locaties */}
-                  <Card className="shadow-sm">
-                    <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b pb-4">
-                      <CardTitle className="text-lg font-medium text-gray-900">Top 5 Locaties</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="text-gray-600">Locatie</TableHead>
-                            <TableHead className="text-gray-600 text-right">Aantal</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {getTopLocations().map(([location, count]) => (
-                            <TableRow key={location}>
-                              <TableCell className="text-gray-900 text-sm">{location}</TableCell>
-                              <TableCell className="text-gray-900 text-right font-medium">{count}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Empty State */}
-              {registrations.length === 0 && (
-                <Card className="shadow-sm">
-                  <CardContent className="p-12 text-center">
-                    <div className="text-gray-400 mb-4">
-                      <div className="text-6xl mb-4">📊</div>
-                      <h3 className="text-xl font-semibold text-gray-600 mb-2">Nog geen statistieken beschikbaar</h3>
-                      <p className="text-gray-500">Registreer enkele producten om statistieken te zien</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Top Locations */}
+              <Card className="shadow-sm">
+                <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b pb-4">
+                  <CardTitle className="text-lg font-medium text-gray-900">Top Locaties</CardTitle>
+                  <CardDescription className="text-gray-500">Locaties met de meeste registraties</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-gray-600">Locatie</TableHead>
+                        <TableHead className="text-gray-600">Registraties</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {getTopLocations().map(([location, count]) => (
+                        <TableRow key={location}>
+                          <TableCell className="text-gray-900">{location}</TableCell>
+                          <TableCell className="text-gray-900">{count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>
 
-        {/* Edit Product Dialog */}
+        {/* Edit Dialogs */}
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Product Bewerken</DialogTitle>
-              <DialogDescription>Pas de productnaam, QR code en categorie aan.</DialogDescription>
+              <DialogDescription>Bewerk de product gegevens</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -2726,18 +2786,18 @@ export default function ProductRegistrationApp() {
                 <Input
                   id="name"
                   value={editingProduct?.name || ""}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value } as Product)}
+                  onChange={(e) => setEditingProduct({ ...editingProduct!, name: e.target.value })}
                   className="col-span-3"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="qr_code" className="text-right">
+                <Label htmlFor="qrcode" className="text-right">
                   QR Code
                 </Label>
                 <Input
-                  id="qr_code"
+                  id="qrcode"
                   value={editingProduct?.qrcode || ""}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, qrcode: e.target.value } as Product)}
+                  onChange={(e) => setEditingProduct({ ...editingProduct!, qrcode: e.target.value })}
                   className="col-span-3"
                 />
               </div>
@@ -2747,12 +2807,7 @@ export default function ProductRegistrationApp() {
                 </Label>
                 <Select
                   value={editingProduct?.categoryId || "none"}
-                  onValueChange={(value) =>
-                    setEditingProduct({
-                      ...editingProduct,
-                      categoryId: value === "none" ? undefined : value,
-                    } as Product)
-                  }
+                  onValueChange={(value) => setEditingProduct({ ...editingProduct!, categoryId: value })}
                 >
                   <SelectTrigger className="col-span-3">
                     <SelectValue placeholder="Selecteer een categorie" />
@@ -2779,12 +2834,11 @@ export default function ProductRegistrationApp() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit User Dialog */}
         <Dialog open={showEditUserDialog} onOpenChange={setShowEditUserDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Gebruiker Bewerken</DialogTitle>
-              <DialogDescription>Pas de naam van de gebruiker aan.</DialogDescription>
+              <DialogDescription>Bewerk de gebruikersnaam</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -2810,12 +2864,11 @@ export default function ProductRegistrationApp() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Category Dialog */}
         <Dialog open={showEditCategoryDialog} onOpenChange={setShowEditCategoryDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Categorie Bewerken</DialogTitle>
-              <DialogDescription>Pas de naam van de categorie aan.</DialogDescription>
+              <DialogDescription>Bewerk de categorienaam</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -2825,7 +2878,7 @@ export default function ProductRegistrationApp() {
                 <Input
                   id="name"
                   value={editingCategory?.name || ""}
-                  onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value } as Category)}
+                  onChange={(e) => setEditingCategory({ ...editingCategory!, name: e.target.value })}
                   className="col-span-3"
                 />
               </div>
@@ -2841,12 +2894,11 @@ export default function ProductRegistrationApp() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Location Dialog */}
         <Dialog open={showEditLocationDialog} onOpenChange={setShowEditLocationDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Locatie Bewerken</DialogTitle>
-              <DialogDescription>Pas de naam van de locatie aan.</DialogDescription>
+              <DialogDescription>Bewerk de locatienaam</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -2872,12 +2924,11 @@ export default function ProductRegistrationApp() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Purpose Dialog */}
         <Dialog open={showEditPurposeDialog} onOpenChange={setShowEditPurposeDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Doel Bewerken</DialogTitle>
-              <DialogDescription>Pas de naam van het doel aan.</DialogDescription>
+              <DialogDescription>Bewerk de doelnaam</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -2905,31 +2956,32 @@ export default function ProductRegistrationApp() {
 
         {/* QR Scanner */}
         {showQrScanner && (
-          <div className="fixed top-0 left-0 w-full h-full bg-gray-900 bg-opacity-80 z-50 flex items-center justify-center">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">QR Code Scanner</h3>
-                <Button variant="ghost" size="sm" onClick={stopQrScanner} className="p-1">
-                  <X className="h-4 w-4" />
+          <div className="fixed top-0 left-0 w-full h-full bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center">
+            <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+              <h2 className="text-xl font-bold mb-4">Scan QR Code</h2>
+              <QrScanner
+                onResult={(result) => handleQrCodeDetected(result.text)}
+                onError={(error) => console.error(error)}
+              />
+              <div className="flex justify-between mt-4">
+                <Button variant="secondary" onClick={stopQrScanner}>
+                  Annuleren
+                </Button>
+                <Input type="text" placeholder="Handmatige invoer" ref={manualInputRef} className="w-auto" />
+                <Button
+                  onClick={() => {
+                    if (manualInputRef.current?.value) {
+                      handleQrCodeDetected(manualInputRef.current.value)
+                    }
+                  }}
+                >
+                  Invoeren
                 </Button>
               </div>
-
-              <div className="text-center mb-6">
-                <h3 className="text-lg font-semibold">QR Code Scanner</h3>
-                <Button variant="ghost" size="sm" onClick={stopQrScanner} className="p-1">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="text-center mb-6">
-                <div className="text-6xl mb-4 text-gray-400">📱</div>
-                <p className="text-gray-600 mb-4">Richt je camera op een QR code</p>
-
-                <div className="space-y-4">
-                  <div className="relative">
-                    <Input
-                      ref={manualInputRef}
-                      type="text"
-                      placeholder="Of voer QR code handmatig in"
-                      value={qrScanResult}
-
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
